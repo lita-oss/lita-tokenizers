@@ -10,6 +10,11 @@ const KYTEA_MODEL_TXT: &[u8] = include_bytes!(concat!(
 ));
 
 #[test]
+fn correct_version() {
+    assert_eq!(version(), "0.4.8");
+}
+
+#[test]
 fn tokenize_bin() {
     let mut model = KyTea::new();
 

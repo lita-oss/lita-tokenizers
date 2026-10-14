@@ -69,6 +69,8 @@ pub(crate) enum ModelFormat {
 }
 
 unsafe extern "C" {
+    pub(crate) fn kytea_version() -> *const c_char;
+
     pub(crate) fn kytea_free_err_message(err: *const c_char);
 
     pub(crate) fn kytea_model_new() -> *mut c_void;

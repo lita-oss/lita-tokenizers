@@ -1,5 +1,6 @@
-#include <kytea/kytea.h>
+#include <kytea/config.h>
 #include <kytea/corpus-io.h>
+#include <kytea/kytea.h>
 #include <kytea/model-io.h>
 
 #include <iostream>
@@ -41,6 +42,10 @@ private:
 };
 
 extern "C" {
+    const char* kytea_version() {
+        return VERSION;
+    }
+
     typedef struct {
         char* msg;
         int code;

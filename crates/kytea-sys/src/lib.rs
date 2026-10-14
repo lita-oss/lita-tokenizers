@@ -71,6 +71,14 @@ use std::io::Error as IoError;
 use std::marker::PhantomData;
 use std::ops::ControlFlow;
 
+/// Returns the KyTea library version defined in `config.h`.
+pub fn version() -> &'static str {
+    // SAFETY: kytea_version returns a NUL-terminated string literal with static lifetime.
+    unsafe { CStr::from_ptr(ffi::kytea_version()) }
+        .to_str()
+        .expect("KyTea version must be valid UTF-8")
+}
+
 /// The main entrypoint for KyTea. It wraps C++ `kytea::Kytea`.
 ///
 /// # Examples
