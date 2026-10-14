@@ -403,6 +403,95 @@ impl KyTeaConfig<'_> {
         }
         self
     }
+
+    /// Same as [`Self::set_word_bound()`].
+    ///
+    /// # Safety
+    ///
+    /// The inner model borrows `word_bound`, so `word_bound` must outlive `self.`
+    pub unsafe fn set_word_bound_unchecked(&mut self, word_bound: &CStr) -> &mut Self {
+        unsafe {
+            ffi::kytea_config_set_word_bound(self.inner, word_bound.as_ptr());
+        }
+        self
+    }
+    /// Same as [`Self::set_tag_bound()`].
+    ///
+    /// # Safety
+    ///
+    /// The inner model borrows `tag_bound`, so `tag_bound` must outlive `self.`
+    pub unsafe fn set_tag_bound_unchecked(&mut self, tag_bound: &CStr) -> &mut Self {
+        unsafe {
+            ffi::kytea_config_set_tag_bound(self.inner, tag_bound.as_ptr());
+        }
+        self
+    }
+    /// Same as [`Self::set_elem_bound()`].
+    ///
+    /// # Safety
+    ///
+    /// The inner model borrows `elem_bound`, so `elem_bound` must outlive `self.`
+    pub unsafe fn set_elem_bound_unchecked(&mut self, elem_bound: &CStr) -> &mut Self {
+        unsafe {
+            ffi::kytea_config_set_elem_bound(self.inner, elem_bound.as_ptr());
+        }
+        self
+    }
+    /// Same as [`Self::set_unk_bound()`].
+    ///
+    /// # Safety
+    ///
+    /// The inner model borrows `unk_bound`, so `unk_bound` must outlive `self.`
+    pub unsafe fn set_unk_bound_unchecked(&mut self, unk_bound: &CStr) -> &mut Self {
+        unsafe {
+            ffi::kytea_config_set_unk_bound(self.inner, unk_bound.as_ptr());
+        }
+        self
+    }
+    /// Same as [`Self::set_no_bound()`].
+    ///
+    /// # Safety
+    ///
+    /// The inner model borrows `no_bound`, so `no_bound` must outlive `self.`
+    pub unsafe fn set_no_bound_unchecked(&mut self, no_bound: &CStr) -> &mut Self {
+        unsafe {
+            ffi::kytea_config_set_no_bound(self.inner, no_bound.as_ptr());
+        }
+        self
+    }
+    /// Same as [`Self::set_has_bound()`].
+    ///
+    /// # Safety
+    ///
+    /// The inner model borrows `has_bound`, so `has_bound` must outlive `self.`
+    pub unsafe fn set_has_bound_unchecked(&mut self, has_bound: &CStr) -> &mut Self {
+        unsafe {
+            ffi::kytea_config_set_has_bound(self.inner, has_bound.as_ptr());
+        }
+        self
+    }
+    /// Same as [`Self::set_skip_bound()`].
+    ///
+    /// # Safety
+    ///
+    /// The inner model borrows `skip_bound`, so `skip_bound` must outlive `self.`
+    pub unsafe fn set_skip_bound_unchecked(&mut self, skip_bound: &CStr) -> &mut Self {
+        unsafe {
+            ffi::kytea_config_set_skip_bound(self.inner, skip_bound.as_ptr());
+        }
+        self
+    }
+    /// Same as [`Self::set_escape()`].
+    ///
+    /// # Safety
+    ///
+    /// The inner model borrows `escape`, so `escape` must outlive `self.`
+    pub unsafe fn set_escape_unchecked(&mut self, escape: &CStr) -> &mut Self {
+        unsafe {
+            ffi::kytea_config_set_escape(self.inner, escape.as_ptr());
+        }
+        self
+    }
 }
 
 /// The debug level for the C++ half.
