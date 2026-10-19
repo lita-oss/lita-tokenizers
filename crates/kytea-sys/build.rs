@@ -49,20 +49,29 @@ fn compile() -> Result<(), Error> {
 
     let include = Path::new(ROOT).join(C_LIB_SRC).join("src/include");
 
-    cc::Build::new()
+    let mut build = cc::Build::new();
+    build
         .cpp(true)
         .std("c++20")
+        .define("PKGDATADIR", &*default_data_dir)
+        .cpp_link_stdlib_static(cfg!(target_env = "musl"));
+
+    let objects = build
+        .clone()
         .files(lib_src)
-        .file(&src)
         .include(&include)
         .include(include.join("kytea"))
-        .define("PKGDATADIR", &*default_data_dir)
-        .flags([
-            "-Wno-ignored-qualifiers",
-            "-Wno-unused-parameter",
-            "-Wno-misleading-indentation",
-        ])
-        .cpp_link_stdlib_static(cfg!(target_env = "musl"))
+        .warnings(false)
+        .compile_intermediates();
+
+    build
+        .flag("-isystem")
+        .flag(&include)
+        .flag("-isystem")
+        .flag(include.join("kytea"))
+        .file(&src)
+        .warnings(true)
+        .objects(objects)
         .compile("kytea");
 
     println!("cargo:rustc-link-lib=static=kytea");

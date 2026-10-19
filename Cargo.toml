@@ -10,7 +10,7 @@ repository = "https://github.com/naughie/lita-tokenizers"
 homepage = "https://github.com/naughie/lita-tokenizers"
 
 [workspace.dependencies]
-kytea-sys = { path = "./crates/kytea-sys", version = "0.2.6" }
+kytea-sys = { path = "./crates/kytea-sys", version = "0.2.7" }
 mecab-sys = { path = "./crates/mecab-sys", version = "0.1.2" }
 
 tokenizers-core = { path = "./crates/lita-tokenizers-core", package = "lita-tokenizers-core", version = "0.1.0" }
