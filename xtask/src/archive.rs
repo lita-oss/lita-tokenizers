@@ -1,11 +1,17 @@
-use std::{collections::BTreeMap, io::Read};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Read,
+};
 
 use anyhow::{Context, Result, ensure};
 use flate2::read::GzDecoder;
 
 /// Compare shipped inputs, not gzip timestamps or Cargo's generated bookkeeping.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Archive(BTreeMap<String, File>);
+pub(crate) struct Archive {
+    files: BTreeMap<String, File>,
+    workspace_packages: BTreeSet<(String, String)>,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct File {
@@ -64,29 +70,106 @@ impl Archive {
         if !has_binaries {
             files.remove("Cargo.lock");
         }
-        Ok(Self(files))
+        Ok(Self {
+            files,
+            workspace_packages: BTreeSet::new(),
+        })
+    }
+
+    pub fn with_workspace_packages<'a>(
+        mut self,
+        packages: impl IntoIterator<Item = (&'a str, &'a semver::Version)>,
+    ) -> Self {
+        self.workspace_packages = packages
+            .into_iter()
+            .map(|(name, version)| (name.to_owned(), version.to_string()))
+            .collect();
+        self
     }
 
     pub fn differences(&self, other: &Self) -> Vec<String> {
-        self.0
+        self.files
             .keys()
-            .chain(other.0.keys())
-            .filter(|key| self.0.get(*key) != other.0.get(*key))
+            .chain(other.files.keys())
+            .filter(|key| !self.same_file(key, other))
             .cloned()
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
             .collect()
     }
 
+    fn same_file(&self, path: &str, other: &Self) -> bool {
+        let (Some(local), Some(remote)) = (self.files.get(path), other.files.get(path)) else {
+            return false;
+        };
+        if local == remote {
+            return true;
+        }
+        if path != "Cargo.lock" || local.executable != remote.executable {
+            return false;
+        }
+        // A workspace package archive is rebuilt in Cargo's staging registry.
+        // Its hash can differ from the published archive, even when its shipped
+        // inputs match (e.g. different VCS bookkeeping). Compare the lockfile's
+        // resolution, but not these temporary hashes. External checksums stay exact.
+        let (Ok(mut local), Ok(mut remote)) = (
+            serde_json::from_slice::<serde_json::Value>(&local.content),
+            serde_json::from_slice::<serde_json::Value>(&remote.content),
+        ) else {
+            return false;
+        };
+        let workspace_packages = self
+            .workspace_packages
+            .union(&other.workspace_packages)
+            .cloned()
+            .collect();
+        Self::normalize_workspace_checksums(&mut local, &workspace_packages);
+        Self::normalize_workspace_checksums(&mut remote, &workspace_packages);
+        local == remote
+    }
+
+    fn normalize_workspace_checksums(
+        lock: &mut serde_json::Value,
+        workspace_packages: &BTreeSet<(String, String)>,
+    ) {
+        let Some(packages) = lock
+            .get_mut("package")
+            .and_then(serde_json::Value::as_array_mut)
+        else {
+            return;
+        };
+        for package in packages {
+            if package.get("source").and_then(serde_json::Value::as_str)
+                != Some("registry+https://github.com/rust-lang/crates.io-index")
+            {
+                continue;
+            }
+            let (Some(name), Some(version)) = (
+                package.get("name").and_then(serde_json::Value::as_str),
+                package.get("version").and_then(serde_json::Value::as_str),
+            ) else {
+                continue;
+            };
+            if workspace_packages.contains(&(name.to_owned(), version.to_owned()))
+                && let Some(package) = package.as_object_mut()
+            {
+                package.remove("checksum");
+            }
+        }
+    }
+
     #[cfg(test)]
     pub fn fixture(content: &str) -> Self {
-        Self(BTreeMap::from([(
-            "src/lib.rs".into(),
-            File {
-                content: content.as_bytes().to_vec(),
-                executable: false,
-            },
-        )]))
+        Self {
+            files: BTreeMap::from([(
+                "src/lib.rs".into(),
+                File {
+                    content: content.as_bytes().to_vec(),
+                    executable: false,
+                },
+            )]),
+            workspace_packages: BTreeSet::new(),
+        }
     }
 }
 
@@ -156,5 +239,83 @@ mod tests {
         let original = Archive::read(&original, "demo", &version).unwrap();
         let changed = Archive::read(&changed, "demo", &version).unwrap();
         assert_eq!(original.differences(&changed), ["Cargo.lock"]);
+    }
+
+    fn binary_archive(lock: &str) -> Archive {
+        let manifest =
+            "[package]\nname='demo'\nversion='1.0.0'\n[[bin]]\nname='demo'\npath='src/main.rs'\n";
+        Archive::read(
+            &pack(&[("Cargo.toml", manifest), ("Cargo.lock", lock)]),
+            "demo",
+            &semver::Version::new(1, 0, 0),
+        )
+        .unwrap()
+    }
+
+    fn staged_lock() -> String {
+        format!(
+            r#"version = 4
+[[package]]
+name = "workspace-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "{}"
+dependencies = ["external"]
+[[package]]
+name = "external"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "{}"
+"#,
+            "a".repeat(64),
+            "b".repeat(64)
+        )
+    }
+
+    #[test]
+    fn staging_and_published_workspace_checksums_are_equivalent() {
+        let staged = staged_lock();
+        let published = staged.replace(&"a".repeat(64), &"c".repeat(64));
+        let local = binary_archive(&staged);
+        let remote = binary_archive(&published);
+        assert_eq!(local.differences(&remote), ["Cargo.lock"]);
+        let version = semver::Version::new(0, 1, 0);
+        let local = local.with_workspace_packages([("workspace-core", &version)]);
+        assert!(local.differences(&remote).is_empty());
+        assert!(remote.differences(&local).is_empty());
+    }
+
+    #[test]
+    fn workspace_checksum_normalization_preserves_other_lockfile_changes() {
+        let staged = staged_lock();
+        let version = semver::Version::new(0, 1, 0);
+        let local = binary_archive(&staged).with_workspace_packages([("workspace-core", &version)]);
+        for changed in [
+            staged.replace(&"b".repeat(64), &"c".repeat(64)), // External checksum.
+            staged.replace("version = \"0.1.0\"", "version = \"0.1.1\""),
+            staged.replace("dependencies = [\"external\"]", "dependencies = []"),
+            staged.replace(
+                "source = \"registry+https://github.com/rust-lang/crates.io-index\"",
+                "source = \"registry+https://other.invalid/index\"",
+            ),
+        ] {
+            assert_eq!(local.differences(&binary_archive(&changed)), ["Cargo.lock"]);
+        }
+        let published = staged.replace(&"a".repeat(64), &"c".repeat(64));
+        let wrong_version = semver::Version::new(0, 1, 1);
+        let wrong_scope =
+            binary_archive(&staged).with_workspace_packages([("workspace-core", &wrong_version)]);
+        assert_eq!(
+            wrong_scope.differences(&binary_archive(&published)),
+            ["Cargo.lock"]
+        );
+        let alternate = staged.replace(
+            "github.com/rust-lang/crates.io-index",
+            "other.invalid/index",
+        );
+        let local =
+            binary_archive(&alternate).with_workspace_packages([("workspace-core", &version)]);
+        let remote = binary_archive(&alternate.replace(&"a".repeat(64), &"c".repeat(64)));
+        assert_eq!(local.differences(&remote), ["Cargo.lock"]);
     }
 }

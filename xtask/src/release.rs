@@ -43,7 +43,13 @@ pub(crate) fn prepare(workspace: &Workspace, registry: &impl Registry) -> Result
                 .join(format!("{name}-{}.crate", package.version));
             let bytes =
                 std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
-            Ok((name.clone(), Archive::read(&bytes, name, &package.version)?))
+            let archive = Archive::read(&bytes, name, &package.version)?.with_workspace_packages(
+                workspace
+                    .crates
+                    .values()
+                    .map(|p| (p.name.as_str(), &p.version)),
+            );
+            Ok((name.clone(), archive))
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
     validate(&workspace.crates, order, archives, registry)

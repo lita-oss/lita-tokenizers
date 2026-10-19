@@ -112,7 +112,7 @@ fn publish_command(workspace: &Workspace) -> Command {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, collections::BTreeMap};
+    use std::{cell::RefCell, collections::BTreeMap, io::Read};
 
     use super::*;
     use crate::{archive::Archive, registry::PublishedVersion};
@@ -158,6 +158,53 @@ mod tests {
                 .map(|name| (name.into(), Archive::fixture(name)))
                 .collect(),
         }
+    }
+
+    fn uploaded_archive(workspace: &Workspace, package: &Crate) -> (Archive, usize) {
+        use flate2::{Compression, read::GzDecoder, write::GzEncoder};
+
+        let path = workspace
+            .target_directory
+            .join("package")
+            .join(format!("{}-{}.crate", package.name, package.version));
+        let bytes = std::fs::read(path).unwrap();
+        let mut input = tar::Archive::new(GzDecoder::new(bytes.as_slice()));
+        let mut output = tar::Builder::new(GzEncoder::new(Vec::new(), Compression::default()));
+        let mut changed_checksums = 0;
+        for entry in input.entries().unwrap() {
+            let mut entry = entry.unwrap();
+            let path = entry.path().unwrap().into_owned();
+            let mut content = Vec::new();
+            entry.read_to_end(&mut content).unwrap();
+            if path.ends_with("Cargo.lock") {
+                let mut lock: toml::Value =
+                    toml::from_str(std::str::from_utf8(&content).unwrap()).unwrap();
+                for entry in lock.get_mut("package").unwrap().as_array_mut().unwrap() {
+                    let name = entry["name"].as_str().unwrap();
+                    if workspace.crates.get(name).is_some_and(|p| {
+                        Some(p.version.to_string().as_str()) == entry["version"].as_str()
+                    }) && entry.get("checksum").is_some()
+                    {
+                        // Real cargo publish packages crates separately against
+                        // registry hashes, unlike the planning staging registry.
+                        entry["checksum"] = toml::Value::String("f".repeat(64));
+                        changed_checksums += 1;
+                    }
+                }
+                content = toml::to_string(&lock).unwrap().into_bytes();
+            }
+            let mut header = entry.header().clone();
+            header.set_size(content.len() as u64);
+            header.set_cksum();
+            output
+                .append_data(&mut header, path, content.as_slice())
+                .unwrap();
+        }
+        let bytes = output.into_inner().unwrap().finish().unwrap();
+        (
+            Archive::read(&bytes, &package.name, &package.version).unwrap(),
+            changed_checksums,
+        )
     }
 
     #[test]
@@ -215,18 +262,25 @@ mod tests {
         let workspace = Workspace::load(Some(manifest.clone())).unwrap();
         let first = release::prepare(&workspace, &registry).unwrap();
         let mut uploads = Vec::new();
+        let mut changed_checksums = 0;
         execute(&first, &registry, Duration::ZERO, |package| {
             uploads.push(package.name.clone());
+            let (archive, changed) = uploaded_archive(&workspace, package);
+            changed_checksums += changed;
             registry
                 .0
                 .borrow_mut()
-                .insert(package.name.clone(), first.archives[&package.name].clone());
+                .insert(package.name.clone(), archive);
             Ok(true)
         })
         .unwrap();
         assert_eq!(
             uploads,
             ["idempotency-fixture-core", "idempotency-fixture-cli"]
+        );
+        assert!(
+            changed_checksums > 0,
+            "must exercise staging versus published checksums"
         );
         let published = registry.0.borrow().clone();
 

@@ -63,8 +63,13 @@ Cargo's `Cargo.toml.orig` and `.cargo_vcs_info.json` are excluded. A library's
 generated package `Cargo.lock` is excluded because consumers resolve their own
 dependencies. For packages with binary targets, the lockfile is compared
 semantically too: `cargo install --locked` uses it, so lockfile-only binary changes
-require a version bump. An explicit version bump still schedules publication even
-when sources match.
+to dependency versions or sources require a version bump. Checksums for the exact
+workspace package names and versions are ignored during lockfile comparison:
+Cargo's temporary packaging registry gives rebuilt workspace archives different
+hashes from the published archives. External dependency checksums are still
+compared, and downloaded crate archives are always verified against the crates.io
+index checksum. An explicit version bump still schedules publication even when
+sources match.
 
 ## Publishing
 
