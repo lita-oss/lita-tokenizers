@@ -30,3 +30,8 @@ futures-executor = "0.3"
 futures-io = "0.3"
 futures-util = { version = "0.3", default-features = false }
 tokio = { version = "1", default-features = false }
+
+[profile.release-minified]
+inherits = "release"
+lto = true
+strip = "symbols"
