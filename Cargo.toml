@@ -6,8 +6,8 @@ resolver = "3"
 edition = "2024"
 authors = ["Masato Nakata <masaton@naughie.com>"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/naughie/lita-tokenizers"
-homepage = "https://github.com/naughie/lita-tokenizers"
+repository = "https://github.com/lita-oss/lita-tokenizers"
+homepage = "https://github.com/lita-oss/lita-tokenizers"
 
 [workspace.dependencies]
 kytea-sys = { path = "./crates/kytea-sys", version = "0.2.7" }

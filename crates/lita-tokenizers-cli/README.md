@@ -7,7 +7,7 @@ This part is effectively no more than the compatibility layer between the comman
 
 ## Usage
 
-First, download the pre-compiled binary from the [Release page](https://github.com/naughie/lita-tokenizers/releases/latest).
+First, download the pre-compiled binary from the [Release page](https://github.com/lita-oss/lita-tokenizers/releases/latest).
 Or, build the binary from the source:
 
 ```
