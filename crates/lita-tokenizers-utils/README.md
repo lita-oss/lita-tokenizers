@@ -1,5 +1,9 @@
 # lita-tokenizers-utils
 
+[![crates.io](https://img.shields.io/crates/v/lita-tokenizers-utils.svg)](https://crates.io/crates/lita-tokenizers-utils)
+[![docs.rs](https://docs.rs/lita-tokenizers-utils/badge.svg)](https://docs.rs/lita-tokenizers-utils)
+[![License](https://img.shields.io/crates/l/lita-tokenizers-utils.svg)](https://crates.io/crates/lita-tokenizers-utils)
+
 Exposes the high-level APIs of `lita-tokenizers-core`.
 
 Read the module-level documentation for more details.

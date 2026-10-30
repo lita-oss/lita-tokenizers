@@ -1,5 +1,8 @@
 # `lita-tokenizers-cli`
 
+[![crates.io](https://img.shields.io/crates/v/lita-tokenizers-cli.svg)](https://crates.io/crates/lita-tokenizers-cli)
+[![License](https://img.shields.io/crates/l/lita-tokenizers-cli.svg)](https://crates.io/crates/lita-tokenizers-cli)
+
 CLI for LiTA tokenizers.
 
 This part is effectively no more than the compatibility layer between the command line and the `lita-tokenizers` crate.

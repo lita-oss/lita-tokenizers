@@ -1,5 +1,9 @@
 # `lita-tokenizers`
 
+[![crates.io](https://img.shields.io/crates/v/lita-tokenizers.svg)](https://crates.io/crates/lita-tokenizers)
+[![docs.rs](https://docs.rs/lita-tokenizers/badge.svg)](https://docs.rs/lita-tokenizers)
+[![License](https://img.shields.io/crates/l/lita-tokenizers.svg)](https://crates.io/crates/lita-tokenizers)
+
 High-level APIs to utilize tokenizers that are working on the LiTA app.
 
 This crate gives you a set of tokenizer-agnostic APIs in [`common`],

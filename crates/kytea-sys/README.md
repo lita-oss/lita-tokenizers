@@ -1,5 +1,9 @@
 # kytea-sys
 
+[![crates.io](https://img.shields.io/crates/v/kytea-sys.svg)](https://crates.io/crates/kytea-sys)
+[![docs.rs](https://docs.rs/kytea-sys/badge.svg)](https://docs.rs/kytea-sys)
+[![License](https://img.shields.io/crates/l/kytea-sys.svg)](https://crates.io/crates/kytea-sys)
+
 **Rust FFI bindings for [KyTea](http://www.phontron.com/kytea/).**
 
 `kytea-sys` provides raw, unsafe FFI bindings to the KyTea (C++) library.

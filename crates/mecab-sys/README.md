@@ -1,5 +1,9 @@
 # mecab-sys
 
+[![crates.io](https://img.shields.io/crates/v/mecab-sys.svg)](https://crates.io/crates/mecab-sys)
+[![docs.rs](https://docs.rs/mecab-sys/badge.svg)](https://docs.rs/mecab-sys)
+[![License](https://img.shields.io/crates/l/mecab-sys.svg)](https://crates.io/crates/mecab-sys)
+
 **Rust FFI bindings for [MeCab](https://taku910.github.io/mecab/).**
 
 `mecab-sys` provides raw, unsafe FFI bindings to the MeCab (C++) library.
