@@ -7,8 +7,6 @@
 **A general Rust wrapper for [spaCy](https://spacy.io/), using PyO3 to embed CPython.**
 
 The wrapper provides pipelines, documents, sentences, tokens, and common annotations.
-For operations outside the typed interface, `as_python()` exposes the underlying object through the re-exported `python` (PyO3) crate.
-For the LiTA tokenization traits, use [lita-tokenizers-spacy](../lita-tokenizers-spacy).
 
 ---
 

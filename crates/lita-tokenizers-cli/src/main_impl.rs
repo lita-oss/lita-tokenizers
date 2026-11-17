@@ -2,10 +2,13 @@ use tokenizers_api as api;
 
 pub use anyhow::Error;
 use anyhow::anyhow;
+#[cfg(feature = "spacy")]
+use clap::ValueEnum;
 use clap::{Parser, Subcommand};
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Parser)]
 #[command(version, about, long_about = None)]
@@ -45,6 +48,32 @@ enum Tokenizer {
 
         #[arg(short, long)]
         tag: Option<Indices>,
+
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    Spacy {
+        input: Input,
+
+        #[arg(short, long, default_value = "dynamic")]
+        charset: Charset,
+
+        #[arg(
+            short,
+            long,
+            required_unless_present = "model_path",
+            conflicts_with = "model_path"
+        )]
+        model: Option<String>,
+
+        #[arg(long, required_unless_present = "model", conflicts_with = "model")]
+        model_path: Option<PathBuf>,
+
+        #[arg(long)]
+        site_packages: Vec<PathBuf>,
+
+        #[arg(short, long, default_value = "pos,tag,lemma,morph")]
+        tag: SpacyAttributes,
 
         #[arg(short, long)]
         output: Option<PathBuf>,
@@ -151,7 +180,46 @@ impl From<&OsStr> for Indices {
     }
 }
 
-#[cfg(not(all(feature = "kytea", feature = "mecab")))]
+#[cfg(feature = "spacy")]
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum SpacyAttribute {
+    Pos,
+    Tag,
+    Lemma,
+    Morph,
+}
+
+#[derive(Debug, Clone)]
+struct SpacyAttributes {
+    #[cfg(feature = "spacy")]
+    inner: Vec<SpacyAttribute>,
+}
+
+impl FromStr for SpacyAttributes {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        #[cfg(feature = "spacy")]
+        fn from_impl(value: &str) -> Result<SpacyAttributes, String> {
+            let mut inner = Vec::new();
+            if !value.is_empty() {
+                for attribute in value.split(',') {
+                    let attribute = <SpacyAttribute as ValueEnum>::from_str(attribute, false)?;
+                    inner.push(attribute);
+                }
+            }
+            Ok(SpacyAttributes { inner })
+        }
+        #[cfg(not(feature = "spacy"))]
+        fn from_impl(_value: &str) -> Result<SpacyAttributes, String> {
+            Ok(SpacyAttributes {})
+        }
+
+        from_impl(value)
+    }
+}
+
+#[cfg(not(all(feature = "kytea", feature = "mecab", feature = "spacy")))]
 fn tok_feature_disabled(tok: &'static str, feat: &'static str) -> Result<(), Error> {
     Err(anyhow!(
         "{tok} is disabled. To use it, enable the feature flag {feat}"
@@ -165,6 +233,39 @@ mod compat {
     use api::Charset;
 
     use std::path::PathBuf;
+
+    #[cfg(feature = "spacy")]
+    pub(crate) struct Attributes<'a>(std::slice::Iter<'a, cli::SpacyAttribute>);
+
+    #[cfg(feature = "spacy")]
+    impl Iterator for Attributes<'_> {
+        type Item = api::spacy::TokenAttribute;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            use api::spacy::TokenAttribute;
+            use cli::SpacyAttribute;
+
+            self.0.next().map(|attribute| match attribute {
+                SpacyAttribute::Pos => TokenAttribute::Pos,
+                SpacyAttribute::Tag => TokenAttribute::Tag,
+                SpacyAttribute::Lemma => TokenAttribute::Lemma,
+                SpacyAttribute::Morph => TokenAttribute::Morph,
+            })
+        }
+
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            self.0.size_hint()
+        }
+    }
+
+    #[cfg(feature = "spacy")]
+    impl api::spacy_core::TokenAttributes for cli::SpacyAttributes {
+        type Iter<'a> = Attributes<'a>;
+
+        fn attributes(&self) -> Self::Iter<'_> {
+            Attributes(self.inner.iter())
+        }
+    }
 
     pub(crate) struct Input<'a>(pub(crate) &'a cli::Input);
     impl<'a> From<Input<'a>> for api::Input<'a> {
@@ -277,6 +378,34 @@ async fn run(args: Args) -> Result<(), Error> {
         .map_err(|e| anyhow!("tokenization failed: {e}")),
         #[cfg(not(feature = "mecab"))]
         Tokenizer::Mecab { .. } => tok_feature_disabled("MeCab", "mecab"),
+        #[cfg(feature = "spacy")]
+        Tokenizer::Spacy {
+            input,
+            output,
+            model,
+            model_path,
+            site_packages,
+            tag,
+            charset,
+        } => {
+            let model = match (model, model_path) {
+                (Some(model), None) => api::spacy::Model::Package(model),
+                (None, Some(path)) => api::spacy::Model::Path(path),
+                _ => return Err(anyhow!("specify either --model or --model-path for spaCy")),
+            };
+            api::spacy::run(
+                compat::Input(input).into(),
+                compat::Output(output).into(),
+                charset.into(),
+                api::spacy_core::sys::Config::new(site_packages),
+                model,
+                tag,
+            )
+            .await
+            .map_err(|e| anyhow!("tokenization failed: {e}"))
+        }
+        #[cfg(not(feature = "spacy"))]
+        Tokenizer::Spacy { .. } => tok_feature_disabled("spaCy", "spacy"),
         Tokenizer::Whitespace {
             input,
             output,

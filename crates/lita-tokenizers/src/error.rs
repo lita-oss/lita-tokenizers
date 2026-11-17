@@ -13,6 +13,9 @@ use tokenizers_kytea::Error as KyTeaError;
 #[cfg(feature = "mecab")]
 use tokenizers_mecab::sys::Error as MeCabError;
 
+#[cfg(feature = "spacy")]
+use tokenizers_spacy::Error as SpacyError;
+
 #[derive(Debug)]
 pub enum Error {
     /// Input text is of unknown encoding.
@@ -43,6 +46,13 @@ pub enum Error {
     #[cfg(feature = "mecab")]
     /// Failed to initialize the MeCab model.
     MeCabModelRead(MeCabError),
+
+    #[cfg(feature = "spacy")]
+    /// spaCy tokenization fails.
+    Spacy(SpacyError),
+    #[cfg(feature = "spacy")]
+    /// Failed to import spaCy or load the pipeline.
+    SpacyModelRead(SpacyError),
 }
 
 impl fmt::Display for Error {
@@ -65,6 +75,11 @@ impl fmt::Display for Error {
             Self::MeCabModelPath(e) => write!(f, "MeCab model path is an invalid string: {e}"),
             #[cfg(feature = "mecab")]
             Self::MeCabModelRead(e) => write!(f, "could not read the MeCab model: {e}"),
+
+            #[cfg(feature = "spacy")]
+            Self::Spacy(e) => write!(f, "spaCy failed: {e}"),
+            #[cfg(feature = "spacy")]
+            Self::SpacyModelRead(e) => write!(f, "could not load the spaCy model: {e}"),
         }
     }
 }
@@ -88,6 +103,10 @@ impl StdError for Error {
             Self::MeCabModelPath(e) => Some(e),
             #[cfg(feature = "mecab")]
             Self::MeCabModelRead(e) => Some(e),
+            #[cfg(feature = "spacy")]
+            Self::Spacy(e) => Some(e),
+            #[cfg(feature = "spacy")]
+            Self::SpacyModelRead(e) => Some(e),
         }
     }
 }

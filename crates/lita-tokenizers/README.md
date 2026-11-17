@@ -7,10 +7,10 @@
 High-level APIs to utilize tokenizers that are working on the LiTA app.
 
 This crate gives you a set of tokenizer-agnostic APIs in [`common`],
-along with tokenier-specific entrypoints in [`kytea`], [`mecab`], and [`whitespace`].
-These tokenizers can be opt-out via feature flags `kytea`/`mecab` because they depends on the
-C++ bindings `kytea-sys`/`mecab-sys` respectively, hence requiring the complex build-time
-environment.
+along with tokenier-specific entrypoints in [`kytea`], [`mecab`], [`spacy`], and [`whitespace`].
+These tokenizers can be opt-out via feature flags `kytea`/`mecab`/`spacy` because they depends on the
+C++ bindings `kytea-sys`/`mecab-sys` and the Python bindings `spacy-sys` respectively,
+hence requiring the complex build-time environment.
 
 ## Async runtime
 
@@ -25,6 +25,7 @@ All of the features are *enabled by default*.
 - `decode`: When disabled, input text are interpreted as UTF-8; when enabled, it will be aware of other encodings. See the documentation of [`utils`].
 - `kytea`: When enabled, we offer the rich APIs for [KyTea](kytea_core) tokenier.
 - `mecab`: When enabled, we offer the rich APIs for [MeCab](mecab_core) tokenier.
+- `spacy`: When enabled, we offer the rich APIs for [spaCy](spacy_core) tokenier.
 
-If you enable the C/C++-related features, `kytea` or `mecab`, you may need the additional
-build-time requirements. Check the documentation of the `kytea-sys` and `mecab-sys` crates.
+If you enable the C/C++/Python-related features, `kytea`, `mecab`, or `spacy`, you may need the additional
+build-time requirements. Check the documentation of the `kytea-sys`, `mecab-sys`, and `spacy-sys` crates.

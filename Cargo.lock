@@ -935,6 +935,7 @@ dependencies = [
  "lita-tokenizers-core",
  "lita-tokenizers-kytea",
  "lita-tokenizers-mecab",
+ "lita-tokenizers-spacy",
  "lita-tokenizers-utils",
  "lita-tokenizers-whitespace",
  "tokio",

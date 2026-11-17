@@ -62,9 +62,9 @@ The test script includes doctests. Examples requiring Python packages are marked
 operations with provisioned dependencies. These checks do not establish support
 for Python versions or platforms that have not been exercised.
 
-A workspace-wide build includes the spaCy crates even though the facade and CLI
-do not depend on them. Jobs without Python must explicitly exclude both crates,
-for example `cargo check --workspace --exclude spacy-sys --exclude lita-tokenizers-spacy`.
+A workspace-wide build includes the spaCy backend crates, facade, and CLI.
+Jobs without Python must exclude both backend crates and disable default features,
+for example `cargo check --workspace --no-default-features --exclude spacy-sys --exclude lita-tokenizers-spacy`.
 
 ## Containers
 
