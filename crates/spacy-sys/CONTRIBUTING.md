@@ -1,94 +1,45 @@
-# Developing the spaCy crates
+# Developing spacy-sys
 
-The integration suite covers both the general `spacy-sys` wrapper and the
-`lita-tokenizers-spacy` adapter. Tests use a dedicated environment rather than
-installing into the developer's normal Python environment. They fail when
-required environment settings or packages are missing; they do not skip cases.
+The tests assume uv and shared CPython are already installed, and `PYO3_PYTHON`
+and the shared-library loader path, such as `LD_LIBRARY_PATH`, are already set.
+Tests use that interpreter; they do not install Python or change its runtime
+configuration.
 
-## Local development and CI
-
-Install Rust, [uv](https://docs.astral.sh/uv/), and a runnable shared-library
-CPython. CPython 3.12 is the baseline used by the container recipes. Select a real
-interpreter executable rather than a shell alias or a launcher requiring extra
-arguments:
+## Tests
 
 ```sh
-PYO3_PYTHON=/usr/bin/python3 sh crates/spacy-sys/tests/run.sh --locked
-PYO3_PYTHON=/usr/bin/python3 sh crates/spacy-sys/tests/run.sh --locked --no-default-features
+cargo test -p spacy-sys --locked
+cargo test -p spacy-sys --locked --no-default-features
 ```
 
-Run these commands from any directory. The script resolves the workspace root,
-copies `tests/assets/uv/pyproject.toml` and `uv.lock` into `target/spacy-tests/project`,
-and installs the locked test group, including spaCy 3.8.18 and `en_core_web_sm`
-3.8.0. Python downloads are disabled. The initial package setup needs network
-access; subsequent runs reuse the environment and its uv cache. Rust's `--locked`
-and uv's `--locked` protect different dependency graphs; the script always uses
-uv's lockfile, and forwards arguments to `cargo test` for both crates.
-The Python version range in the test manifest controls dependency resolution;
-it does not describe a tested Python/platform matrix.
+The `tokenize()` test in `src/tests.rs` loads `tests/models/lita-en-minimal`,
+relative to `CARGO_MANIFEST_DIR`. This model was generated using Python 3.15.2
+and parses “The quick brown fox jumps over the lazy dog.” with UD POS tags and
+dependency relations. Test models are excluded from the Cargo package.
 
-`SPACY_TEST_ROOT` overrides the test cache location. Otherwise the script uses
-`CARGO_TARGET_DIR/spacy-tests`, or `target/spacy-tests` when no target directory is
-specified. `UV` can select a uv executable. The script queries the test Python for
-its package directories, base installation, and library directory, configures the
-launcher environment, and exports:
+The test helper installs spaCy 3.8.18 and its dependencies into
+`CARGO_MANIFEST_DIR/.tmp/site-packages` using blocking `uv pip install` with the
+configured `PYO3_PYTHON`. It waits for `.tmp/site-packages.lock` to be released,
+then reuses an existing `.tmp/site-packages/spacy` directory. If spaCy is absent,
+it acquires the lock, installs the package, and releases the lock. The lock file
+can remain on disk after release; its existence does not mean it is locked.
 
-- `SPACY_TEST_ROOT`: writable generated-fixture directory.
-- `SPACY_TEST_PYTHON`: test environment's Python executable.
-- `SPACY_TEST_SITE_PACKAGES`: package directories separated by the platform's path separator.
-- `PYO3_PYTHON`: the same test Python used to prepare the packages.
+The first installation needs network access. Subsequent runs reuse the package
+directory. Install failures fail the test. With no tests running, remove
+`.tmp/site-packages` before switching Python ABIs or changing the pinned spaCy
+version.
 
-It also sets `PYO3_ENVIRONMENT_SIGNATURE` from the base interpreter's version and
-configuration, so recreating a venv at the same path with a different Python
-invalidates PyO3's cached build configuration.
-
-Each crate writes generated models into its own subdirectory of the test root.
-Test helpers read these settings and supply explicit search paths to `Config`.
-Python's module cache is process-wide, so import-source scenarios use fresh test
-processes. Normal tests never download anything; provisioning happens before the
-test processes start. `cargo clean` removes the default test cache.
-
-CI should run the default and disabled-feature suites, then formatting, lints,
-and documentation checks:
+## Checks
 
 ```sh
-cargo fmt -p spacy-sys -p lita-tokenizers-spacy -- --check
-PYO3_PYTHON=/usr/bin/python3 cargo clippy -p spacy-sys -p lita-tokenizers-spacy --all-targets --all-features -- -D warnings
-PYO3_PYTHON=/usr/bin/python3 RUSTDOCFLAGS='-D warnings' cargo doc -p spacy-sys -p lita-tokenizers-spacy --all-features --no-deps
+cargo fmt -p spacy-sys -- --check
+cargo clippy -p spacy-sys --all-targets --all-features -- -D warnings
+RUSTDOCFLAGS='-D warnings' cargo doc -p spacy-sys --all-features --no-deps
 ```
 
-The test script includes doctests. Examples requiring Python packages are marked
-`no_run`: they are compiled, while integration tests execute the corresponding
-operations with provisioned dependencies. These checks do not establish support
-for Python versions or platforms that have not been exercised.
+Examples requiring Python packages are marked `no_run` and are compile-checked.
+The tokenization test checks the pangram's tokens, POS tags, and dependency parse.
 
 A workspace-wide build includes the spaCy backend crates, facade, and CLI.
 Jobs without Python must exclude both backend crates and disable default features,
 for example `cargo check --workspace --no-default-features --exclude spacy-sys --exclude lita-tokenizers-spacy`.
-
-## Containers
-
-From the workspace root:
-
-```sh
-docker build -f crates/lita-tokenizers-spacy/tests/Dockerfile.debian -t lita-spacy:debian .
-docker run --rm lita-spacy:debian
-
-docker build -f crates/lita-tokenizers-spacy/tests/Dockerfile.alpine -t lita-spacy:alpine .
-docker run --rm lita-spacy:alpine
-```
-
-Both recipes provision uv-managed CPython 3.12 before invoking the test harness.
-The Alpine recipe disables static CRT linking so Python can load native extension
-modules. It also depends on native wheels or build prerequisites being available
-for the pinned Python packages on musl; a Debian result alone does not validate it.
-
-## Updating dependencies
-
-The uv project and lockfile are test fixtures, not a public runtime environment
-API. Update them together with uv, run both suites, and review annotation
-expectations when changing spaCy or the trained model.
-Before adding a spaCy version to the supported range, run the integration suite
-against that version and update the README's supported-version section.
-Application package versions, model choices, and cache directories remain
-application policy.

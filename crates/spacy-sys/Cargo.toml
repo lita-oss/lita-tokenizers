@@ -1,8 +1,8 @@
 [package]
 name = "spacy-sys"
 version = "0.1.0"
-autotests = false
 description = "Typed Rust wrappers for spaCy through embedded CPython."
+exclude = ["tests/models", ".tmp"]
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -20,6 +20,3 @@ pyo3.workspace = true
 
 [build-dependencies]
 pyo3-build-config = "0.30"
-
-[[test]]
-name = "wrapper"

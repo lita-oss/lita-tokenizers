@@ -65,3 +65,6 @@ pub use iter::{Docs, Spans, Tokens};
 
 pub use pyo3 as python;
 pub use pyo3::{PyErr as Error, Python};
+
+#[cfg(test)]
+mod tests;

@@ -1,7 +1,6 @@
 [package]
 name = "lita-tokenizers-spacy"
 version = "0.1.0"
-autotests = false
 
 description = "The implementation of lita-tokenizers-core for spacy-sys."
 
@@ -14,6 +13,3 @@ homepage.workspace = true
 [dependencies]
 tokenizers-core.workspace = true
 spacy-sys.workspace = true
-
-[[test]]
-name = "english"

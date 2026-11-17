@@ -4,186 +4,88 @@
 [![docs.rs](https://docs.rs/spacy-sys/badge.svg)](https://docs.rs/spacy-sys)
 [![License](https://img.shields.io/crates/l/spacy-sys.svg)](https://crates.io/crates/spacy-sys)
 
-**A general Rust wrapper for [spaCy](https://spacy.io/), using PyO3 to embed CPython.**
+**Rust FFI bindings for [spaCy](https://spacy.io/).**
 
-The wrapper provides pipelines, documents, sentences, tokens, and common annotations.
+`spacy-sys` provides typed, safe wrappers to the spaCy (Python) library through PyO3.
+This crate embeds a CPython interpreter. **You need to install Python and spaCy on your system to use this crate.**
+
+
+**Only prediction mode is supported now.**
+If you want to train a model, still you have to use spaCy.
 
 ---
 
 
-## Supported spaCy versions
+## Prerequisites
 
-`spacy-sys` 0.1 supports spaCy **3.8.18**.
-Use pipeline models and Python dependencies compatible with this release.
+This crate **does not** bundle the spaCy model files. To actually use spaCy for text analysis, you must download (or train by yourself) a pre-trained model.
+
+You will also need a shared-library build of CPython installed on your system so PyO3 can embed the interpreter, and spaCy 3.8.18 and the model's Python dependencies installed for that interpreter.
+Set `PYO3_PYTHON` to the interpreter executable and configure the shared-library loader path, such as `LD_LIBRARY_PATH` on Linux.
+To configure the interpreter behavior, check the documentation of [PyO3](https://pyo3.rs/v0.30.1/building-and-distribution).
+The tests also require uv to install spaCy into `.tmp/site-packages`.
 
 
-## Build and runtime requirements
-
-Install a shared-library build of CPython before building this crate or a binary that depends on it.
-Distribution-provided Python may also require its development/linker package, such as `python3-dev` on Debian/Ubuntu.
-PyO3 discovers Python from the environment; select an interpreter explicitly with `PYO3_PYTHON`:
-
-```sh
-PYO3_PYTHON=/usr/bin/python3 cargo build -p spacy-sys
-```
-
-`PYO3_PYTHON` selects the build configuration; changing it at runtime does not change the linked Python.
-Cross-compilation requires the target Python configuration described in [PyO3's build guide](https://pyo3.rs/v0.30.1/building-and-distribution).
-
-At runtime, the application needs the corresponding Python shared library, standard library, spaCy, and any pipeline models it loads.
-Python's ABI, architecture, and platform must match the installed extension modules.
-The Rust build does not require spaCy or models to be installed, and does not install them.
-
-When distributing a binary, provide a compatible Python installation or include the runtime and its startup configuration in the distribution.
-The OS must be able to find libpython before the program starts; Linux deployments may need `LD_LIBRARY_PATH` in their launcher environment.
-A virtual environment alone does not contain the base Python standard library.
-If the launcher sets `PYTHONHOME`, it must refer to the base Python installation.
 
 ## Installation
+
+Add `spacy-sys` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 spacy-sys = "0.1.0"
 ```
 
-### Python environment
-
-The following examples use a Linux shell and a shared-library CPython installation with `venv` and pip available.
-Run these commands in your Rust application's directory to install spaCy and the English pipeline into a local environment:
-
-```sh
-unset PYTHONHOME PYTHONPATH
-python3 -m venv .venv
-
-.venv/bin/python -m pip install \
-    'spacy==3.8.18' \
-    'https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl'
-
-export PYO3_PYTHON="$PWD/.venv/bin/python"
-
-export SPACY_SITE_PACKAGES="$(
-    "$PYO3_PYTHON" -c 'import os, site; print(os.pathsep.join(site.getsitepackages()))'
-)"
-
-python_home="$("$PYO3_PYTHON" -c 'import sys; print(sys.base_prefix)')"
-python_lib="$("$PYO3_PYTHON" -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')"
-
-export PYTHONHOME="$python_home"
-export LD_LIBRARY_PATH="$python_lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-```
-
-`PYO3_PYTHON` selects the Python used for building, `PYTHONHOME` locates its base standard library, and `LD_LIBRARY_PATH` locates its shared library on Linux.
-The example programs read `SPACY_SITE_PACKAGES` and pass its directories to `Config::new()`.
-For other platforms, use the corresponding virtual-environment layout and shared-library loader configuration described in [PyO3's build guide](https://pyo3.rs/v0.30.1/building-and-distribution).
 
 ## Usage
 
-### Extract named entities from a text file
-
-This program loads `en_core_web_sm`, reads a UTF-8 file, and writes each entity's text and label as tab-separated columns.
-It uses the default `entities` feature.
-After preparing the Python environment above, save the following as `src/main.rs` in a binary project with the dependency shown under Installation:
+Basic usage for English morphological analysis:
 
 ```rust
-use spacy_sys::{Config, Python};
+use spacy_sys::{Config, Error, Python};
 
-use std::env;
-use std::error::Error;
-use std::fs;
-use std::io::{self, Write as _};
-use std::path::PathBuf;
+fn main() -> Result<(), Error> {
+    let model = Config::new(["/path/to/your/site-packages"])
+        .load_path("/path/to/your/model")?;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let input = env::args_os().nth(1).ok_or("usage: spacy-entities INPUT")?;
-    let text = fs::read_to_string(PathBuf::from(input))?;
+    Python::attach(|py| {
+        let doc = model.process(py, "The quick brown fox jumps over the lazy dog.")?;
 
-    let package_dirs = env::var_os("SPACY_SITE_PACKAGES")
-        .ok_or("set SPACY_SITE_PACKAGES to the Python package directories")?;
+        for token in doc.tokens()? {
+            let token = token?;
+            let surface = token.text()?;
+            let pos = token.pos()?;
 
-    let nlp = Config::new(env::split_paths(&package_dirs)).load("en_core_web_sm")?;
-
-    let mut out = io::BufWriter::new(io::stdout().lock());
-
-    Python::attach(|py| -> Result<(), Box<dyn Error>> {
-        let doc = nlp.process(py, &text)?;
-
-        for entity in doc.entities()? {
-            let entity = entity?;
-
-            writeln!(out, "{}\t{}", entity.text()?, entity.label()?)?;
+            println!("{surface}: {pos}");
         }
 
         Ok(())
-    })?;
-
-    out.flush()?;
-
-    Ok(())
+    })
 }
 ```
 
-Create an input file and run the program in the same shell:
+## Tests
 
-```sh
-printf '%s\n' 'Alice works at Microsoft in London.' > article.txt
-cargo run --quiet -- article.txt
-```
+We have tests against the minimal model that can parse the sentence `The quick brown fox jumps over the lazy dog.`.
 
-Output:
+The model is located at `tests/models/lita-en-minimal/`, and the input corpus and training configuration are located at `tests/models/input/`.
+With spaCy 3.8.18 installed for Python 3.15.2, run these commands from this crate's directory to train a model from that corpus using the [spaCy CLI](https://spacy.io/api/cli#train).
+The training and evaluation inputs use the same one-sentence corpus; the trained model is saved to `.tmp/training/model-best/`.
 
 ```text
-Alice	PERSON
-Microsoft	ORG
-London	GPE
+$ mkdir -p .tmp
+$ python -m spacy convert ./tests/models/input/train.conllu ./.tmp --converter conllu --n-sents 1
+$ python -m spacy init fill-config ./tests/models/input/config.cfg ./.tmp/config.cfg
+$ python -m spacy train ./.tmp/config.cfg --output ./.tmp/training --paths.train ./.tmp/train.spacy --paths.dev ./.tmp/train.spacy
+$ python -c 'import spacy; nlp = spacy.load("./.tmp/training/model-best"); print("\n".join(f"{t.text}\t{t.pos_}\t{t.dep_}\t{t.head.i}" for t in nlp("The quick brown fox jumps over the lazy dog.")))'
+The	DET	det	3
+quick	ADJ	amod	3
+brown	ADJ	amod	3
+fox	NOUN	nsubj	4
+jumps	VERB	ROOT	4
+over	ADP	case	8
+the	DET	det	8
+lazy	ADJ	amod	8
+dog	NOUN	obl	4
+.	PUNCT	punct	4
 ```
-
-The output depends on the pipeline; the example above uses `en_core_web_sm` 3.8.0.
-To analyze different text, pass another UTF-8 file.
-To use another installed pipeline, change the name passed to `Config::load()`.
-
-`Language::make_doc()` runs only the tokenizer, while `Language::process()` also runs the active pipeline components.
-`Language::pipe()` processes a batch lazily in input order.
-For sentence iteration, the pipeline must provide boundaries through a parser, sentence recognizer, or sentencizer.
-A blank pipeline created with `Language::blank()` needs a sentence component before calling `Doc::sentences()`.
-Python exceptions are returned as `Error` (`pyo3::PyErr`); fallible iterators terminate after an error or exhaustion.
-
-`Token::attribute()` reads the attribute specified by `TokenAttribute`: `Pos` for `pos_`, `Tag` for `tag_`, `Lemma` for `lemma_`, and `Morph` for `str(morph)`.
-The `parsing` feature adds `Dep` (`dep_`); `entities` adds `EntIob` (`ent_iob_`) and `EntType` (`ent_type_`).
-Available annotations depend on the loaded pipeline.
-
-## Package and model locations
-
-The example passes the iterator from `env::split_paths()` directly to `Config::new()` before loading the pipeline.
-Applications can supply directories from any existing Python environment compatible with the linked interpreter.
-Selecting a virtual environment with `PYO3_PYTHON` alone does not guarantee that its site-packages will be searched.
-
-For model packages, include the installation directory containing the package and its distribution metadata.
-`Config::load_path()` and `Language::load_path()` load a model directory instead of an installed package name; its Python dependencies and registered components must still be importable.
-
-Configured paths are added with `site.addsitedir()`, which also processes `.pth` files, including their executable lines.
-Search paths and imported modules are process-wide; added paths persist after the configuration or pipeline is dropped.
-Configure package locations before the first spaCy import.
-Adding paths does not isolate environments or replace an already imported package.
-
-## Ownership and costs
-
-`Language` owns a pipeline reference.
-`Doc`, `Span`, and `Token` remain valid within their `Python::attach()` scope and retain their backing data independently of the input string and pipeline.
-To retain an underlying Python object beyond that scope, clone and unbind its handle, for example `nlp.as_python(py).clone().unbind()`.
-
-String getters return Rust-owned strings.
-`Token::text_ref()` and `Span::text_ref()` return Python string handles for borrowed inspection.
-
-## Feature flags
-
-All optional features are enabled by default:
-
-- `entities`: Document entities, token entity annotations, and span labels.
-- `parsing`: Token dependency labels, heads, and children.
-- `serialization`: Pipeline/document saving and document byte serialization.
-
-Disable them with `default-features = false`.
-Tokenization, sentence iteration, POS, fine POS, lemmas, morphology, and basic pipeline operations remain available.
-Features expose Rust APIs; the loaded spaCy pipeline determines which annotations are populated.
-
-For development and testing, see [CONTRIBUTING.md](CONTRIBUTING.md).

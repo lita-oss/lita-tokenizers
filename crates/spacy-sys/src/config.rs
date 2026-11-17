@@ -90,35 +90,3 @@ where
         py.import("spacy")
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use std::cell::Cell;
-
-    #[test]
-    fn construction_does_not_convert_or_enumerate_paths() {
-        struct Paths<'a>(&'a Cell<bool>);
-
-        impl IntoIterator for Paths<'_> {
-            type Item = PathBuf;
-            type IntoIter = Empty<PathBuf>;
-
-            fn into_iter(self) -> Self::IntoIter {
-                self.0.set(true);
-                iter::empty()
-            }
-        }
-
-        let converted = Cell::new(false);
-
-        {
-            let _config = Config::new(Paths(&converted));
-
-            assert!(!converted.get());
-        }
-
-        assert!(!converted.get());
-    }
-}
