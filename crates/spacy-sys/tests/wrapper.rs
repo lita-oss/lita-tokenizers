@@ -2,6 +2,7 @@ mod common;
 
 use spacy_sys::python::types::PyStringMethods as _;
 use spacy_sys::{Error, Python, TokenAttribute};
+use std::path::PathBuf;
 use std::process::Command;
 
 #[test]
@@ -343,14 +344,28 @@ fn import_sources_work_in_fresh_interpreters() -> Result<(), Error> {
         let model = match scenario.as_str() {
             "searchable" => spacy_sys::Language::load("en_core_web_sm")?,
             "site-packages" => environment.config().load("en_core_web_sm")?,
-            "model-pth" => {
-                let paths: Vec<_> = environment
+            "owned-paths" => {
+                let paths = environment
                     .site_packages()
-                    .chain(std::iter::once(pth_site.as_path()))
-                    .collect();
-                spacy_sys::Config::new(&paths).load("lita_spacy_test_model")?
+                    .map(PathBuf::from)
+                    .collect::<Vec<_>>();
+                spacy_sys::Config::new(paths).load("en_core_web_sm")?
             }
-            "model-path" => environment.config().load_path(&model_path)?,
+            "lazy-paths" => {
+                let paths = environment.site_packages().map(PathBuf::from);
+                let mut model = spacy_sys::Config::new(paths).blank("en")?;
+                model.add_pipe("sentencizer")?;
+                model
+            }
+            "model-pth" => {
+                let paths = environment
+                    .site_packages()
+                    .chain(std::iter::once(pth_site.as_path()));
+                spacy_sys::Config::new(paths).load("lita_spacy_test_model")?
+            }
+            "model-path" => {
+                spacy_sys::Config::new(environment.site_packages()).load_path(&model_path)?
+            }
             _ => panic!("unknown import-test scenario: {scenario}"),
         };
         Python::attach(|py| -> Result<(), Error> {
@@ -397,7 +412,14 @@ pth_site.mkdir(exist_ok=True)
         &[&model_path, &model_site, &pth_site],
     );
 
-    for scenario in ["searchable", "site-packages", "model-pth", "model-path"] {
+    for scenario in [
+        "searchable",
+        "site-packages",
+        "owned-paths",
+        "lazy-paths",
+        "model-pth",
+        "model-path",
+    ] {
         let mut command = Command::new(std::env::current_exe().expect("test executable path"));
         command
             .args([

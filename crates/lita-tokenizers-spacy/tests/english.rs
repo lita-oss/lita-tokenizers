@@ -1,6 +1,6 @@
 mod common;
 
-use lita_tokenizers_spacy::{Error, Spacy, TokenAttribute, TokenAttributes};
+use lita_tokenizers_spacy::{Error, Spacy, TokenAttribute, TokenAttributes, sys};
 use tokenizers_core::{Token, TokenPosition, TokenStream, TokenStreamBuilder, Tokenizer};
 
 type TokenRecord = (TokenPosition, String, Vec<String>);
@@ -18,6 +18,12 @@ fn snapshot(stream: &impl TokenStream) -> Vec<TokenRecord> {
         .collect()
 }
 
+fn tokenizer(model: sys::Language) -> Spacy<impl TokenAttributes> {
+    use TokenAttribute::{Lemma, Morph, Pos, Tag};
+
+    Spacy::new(model, [Pos, Tag, Lemma, Morph])
+}
+
 fn tokenize(
     tokenizer: &mut Spacy<impl TokenAttributes>,
     input: &str,
@@ -31,7 +37,7 @@ fn tokenize(
 fn english_contractions_abbreviations_and_sentences() -> Result<(), Error> {
     use TokenPosition::{Eos, Normal};
 
-    let mut tokenizer = Spacy::from(common::environment().blank_english()?);
+    let mut tokenizer = tokenizer(common::environment().blank_english()?);
     let tokens = tokenize(
         &mut tokenizer,
         "Mr. Smith can't visit the U.K. today. He'll call tomorrow!",
@@ -70,7 +76,7 @@ fn english_contractions_abbreviations_and_sentences() -> Result<(), Error> {
 fn whitespace_is_omitted_without_losing_sentence_ends() -> Result<(), Error> {
     use TokenPosition::{Eos, Normal};
 
-    let mut tokenizer = Spacy::from(common::environment().blank_english()?);
+    let mut tokenizer = tokenizer(common::environment().blank_english()?);
     let tokens = tokenize(&mut tokenizer, " \tHello world. \n\nGoodbye for now \t")?;
     assert_eq!(
         tokens
@@ -91,7 +97,7 @@ fn whitespace_is_omitted_without_losing_sentence_ends() -> Result<(), Error> {
 
 #[test]
 fn unicode_surfaces_are_preserved() -> Result<(), Error> {
-    let mut tokenizer = Spacy::from(common::environment().blank_english()?);
+    let mut tokenizer = tokenizer(common::environment().blank_english()?);
     let tokens = tokenize(&mut tokenizer, "Café owners aren't naïve.")?;
     assert_eq!(
         tokens
@@ -106,7 +112,7 @@ fn unicode_surfaces_are_preserved() -> Result<(), Error> {
 
 #[test]
 fn empty_and_whitespace_only_inputs_have_no_tokens() -> Result<(), Error> {
-    let mut tokenizer = Spacy::from(common::environment().blank_english()?);
+    let mut tokenizer = tokenizer(common::environment().blank_english()?);
     for input in ["", " ", "\t\n \n"] {
         assert!(tokenize(&mut tokenizer, input)?.is_empty(), "{input:?}");
     }
@@ -116,7 +122,7 @@ fn empty_and_whitespace_only_inputs_have_no_tokens() -> Result<(), Error> {
 #[test]
 fn streams_survive_pipeline_reuse_and_dropped_inputs_and_tokenizers() -> Result<(), Error> {
     let stream = {
-        let mut tokenizer = Spacy::from(common::environment().blank_english()?);
+        let mut tokenizer = tokenizer(common::environment().blank_english()?);
         let input = String::from("Hello, world!");
         let mut builder = tokenizer.builder()?;
         let stream = builder.tokenize(&input)?;
@@ -148,7 +154,7 @@ fn streams_survive_pipeline_reuse_and_dropped_inputs_and_tokenizers() -> Result<
 #[test]
 fn missing_model_returns_a_python_error() -> Result<(), Error> {
     // Ensure an import failure cannot accidentally satisfy the missing-model assertion.
-    let _tokenizer = Spacy::from(common::environment().blank_english()?);
+    let _tokenizer = tokenizer(common::environment().blank_english()?);
     let model = "__lita_tokenizers_spacy_missing_model__";
     let error = common::environment()
         .config()
@@ -161,7 +167,7 @@ fn missing_model_returns_a_python_error() -> Result<(), Error> {
 
 #[test]
 fn trained_english_pipeline_supplies_linguistic_tags() -> Result<(), Error> {
-    let mut tokenizer = Spacy::from(common::environment().config().load("en_core_web_sm")?);
+    let mut tokenizer = tokenizer(common::environment().config().load("en_core_web_sm")?);
     let tokens = tokenize(&mut tokenizer, "We are programmers.")?;
     assert_eq!(tokens.len(), 4);
     for (index, (surface, pos, fine_pos, lemma)) in [
@@ -462,7 +468,7 @@ fn builder_uses_current_specification_for_each_enumeration() -> Result<(), Error
 #[test]
 fn missing_sentence_boundaries_fail_during_tokenization() -> Result<(), Error> {
     let model = common::environment().config().blank("en")?;
-    let mut tokenizer = Spacy::from(model);
+    let mut tokenizer = tokenizer(model);
     let mut builder = tokenizer.builder()?;
     let error = builder
         .tokenize("A sentence.")
@@ -474,7 +480,7 @@ fn missing_sentence_boundaries_fail_during_tokenization() -> Result<(), Error> {
 
 #[test]
 fn token_iterator_is_fused_and_reports_remaining_length() -> Result<(), Error> {
-    let mut tokenizer = Spacy::from(common::environment().blank_english()?);
+    let mut tokenizer = tokenizer(common::environment().blank_english()?);
     let mut builder = tokenizer.builder()?;
     let stream = builder.tokenize("Hi.")?;
     let mut tokens = stream.tokens();

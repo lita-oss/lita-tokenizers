@@ -30,12 +30,16 @@
 //!
 //! let mut nlp = Language::blank("en")?;
 //! nlp.add_pipe("sentencizer")?;
+//!
 //! Python::attach(|py| -> Result<(), Error> {
 //!     let doc = nlp.process(py, "Hello, world!")?;
+//!
 //!     let text = doc.tokens()?
 //!         .map(|token| token?.text())
 //!         .collect::<Result<Vec<_>, _>>()?;
+//!
 //!     assert_eq!(text, ["Hello", ",", "world", "!"]);
+//!
 //!     Ok(())
 //! })?;
 //! # Ok::<(), Error>(())

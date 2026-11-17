@@ -3,10 +3,9 @@
 //! Construct and configure a [`sys::Language`], then specify which [`TokenAttribute`] values become core tags.
 //! These are spaCy token attributes, such as `pos_`, `tag_`, and `lemma_`,
 //! rather than indices into an existing tag sequence.
-//! [`Spacy::from()`] selects POS, fine POS, lemma, and morphology;
 //! [`Spacy::new()`] accepts an explicit attribute sequence.
 //!
-//! [`TokenStreamBuilder::tokenize`] processes the input and extracts only the selected attributes
+//! [`TokenStreamBuilder::tokenize()`] processes the input and extracts only the selected attributes
 //! into Rust-owned strings at the FFI boundary.
 //! Python errors are returned before the stream: the core traits provide infallible token access.
 //! Subsequent iteration borrows these strings without allocating or accessing Python.
@@ -26,11 +25,14 @@
 //!
 //! let model = sys::Language::load("en_core_web_sm")?;
 //! let mut tokenizer = Spacy::new(model, [TokenAttribute::Pos, TokenAttribute::Lemma]);
+//!
 //! let mut builder = tokenizer.builder()?;
 //! let stream = builder.tokenize("We are programmers.")?;
+//!
 //! let tags: Vec<_> = stream.tokens().next().unwrap().1.tags()
 //!     .map(|t| t.as_str())
 //!     .collect();
+//!
 //! assert_eq!(tags, ["PRON", "we"]);
 //! # Ok::<(), lita_tokenizers_spacy::Error>(())
 //! ```

@@ -10,8 +10,8 @@ pub struct TestEnvironment {
 }
 
 impl TestEnvironment {
-    pub fn config(&self) -> Config<'_, PathBuf> {
-        Config::new(&self.site_packages)
+    pub fn config(&self) -> Config<&[PathBuf]> {
+        Config::new(self.site_packages.as_slice())
     }
 
     pub fn blank_english(&self) -> Result<Language, spacy_sys::Error> {

@@ -2,43 +2,50 @@ use crate::{Error, Language, Python};
 
 use pyo3::prelude::*;
 
-use std::path::Path;
+use std::iter::{self, Empty};
+use std::path::{Path, PathBuf};
 
 /// Import settings for an existing spaCy installation.
 ///
-/// Additional directories are passed to `site.addsitedir()` before spaCy is imported.
+/// Constructing a configuration stores its path source without iterating it or initializing Python.
+/// Creating or loading a pipeline consumes the configuration and visits its directories in order.
+/// Each directory is passed to `site.addsitedir()` before spaCy is imported.
 /// This processes `.pth` files, including their executable lines.
-/// Directories supplement Python's search path and persist after this configuration is dropped.
+/// Directories supplement Python's search path and persist after the configuration is consumed.
 /// They do not select a Python interpreter, isolate environments, or replace already-imported packages.
 /// Configure paths before the first import of spaCy when selecting a custom installation.
 ///
-/// The configuration borrows the caller's path slice; constructing it does not allocate or clone paths.
+/// Sources can own or borrow paths and can generate them lazily.
 /// Paths are needed only while creating a pipeline, not while using that pipeline.
 #[derive(Debug)]
-pub struct Config<'p, P = &'p Path> {
-    site_packages: &'p [P],
+pub struct Config<I = Empty<PathBuf>> {
+    site_packages: I,
 }
 
-impl<'p> Default for Config<'p> {
+impl Default for Config {
     fn default() -> Self {
-        Self::new(&[])
+        Self::new(iter::empty())
     }
 }
 
-impl<'p, P> Config<'p, P> {
-    /// Borrow existing package directories without allocating or copying paths.
+impl<I> Config<I> {
+    /// Stores a source of package directories without iterating or collecting it.
     ///
     /// Relative paths are resolved when a pipeline is created.
-    /// Directories are processed in slice order; existing Python search paths retain their precedence.
-    /// Elements can be borrowed paths, strings, or owning path types implementing [`AsRef<Path>`](AsRef).
-    pub const fn new(site_packages: &'p [P]) -> Self {
+    /// Processing accepts any [`IntoIterator`] whose items implement [`AsRef<Path>`](AsRef),
+    /// including borrowed paths, strings, and owning path types.
+    pub const fn new(site_packages: I) -> Self {
         Self { site_packages }
     }
 }
 
-impl<P: AsRef<Path>> Config<'_, P> {
-    /// Create a language's default tokenizer without trained pipeline components.
-    pub fn blank(&self, lang: &str) -> Result<Language, Error> {
+impl<I, P> Config<I>
+where
+    I: IntoIterator<Item = P>,
+    P: AsRef<Path>,
+{
+    /// Consumes the configuration and creates a language's tokenizer without trained components.
+    pub fn blank(self, lang: &str) -> Result<Language, Error> {
         Python::attach(|py| {
             Ok(Language::from_python(
                 self.import(py)?.call_method1("blank", (lang,))?,
@@ -46,11 +53,11 @@ impl<P: AsRef<Path>> Config<'_, P> {
         })
     }
 
-    /// Load an installed pipeline package or a model directory named by a string.
+    /// Consumes the configuration and loads an installed pipeline package or model directory.
     ///
     /// The package and its dependencies must already be importable.
     /// This does not download it.
-    pub fn load(&self, model: &str) -> Result<Language, Error> {
+    pub fn load(self, model: &str) -> Result<Language, Error> {
         Python::attach(|py| {
             Ok(Language::from_python(
                 self.import(py)?.call_method1("load", (model,))?,
@@ -58,10 +65,10 @@ impl<P: AsRef<Path>> Config<'_, P> {
         })
     }
 
-    /// Load an existing model directory, preserving non-UTF-8 OS paths.
+    /// Consumes the configuration and loads a model directory, preserving non-UTF-8 OS paths.
     ///
     /// Custom factories and other packages required by the model must already be importable.
-    pub fn load_path(&self, model: impl AsRef<Path>) -> Result<Language, Error> {
+    pub fn load_path(self, model: impl AsRef<Path>) -> Result<Language, Error> {
         Python::attach(|py| {
             Ok(Language::from_python(
                 self.import(py)?.call_method1("load", (model.as_ref(),))?,
@@ -69,13 +76,49 @@ impl<P: AsRef<Path>> Config<'_, P> {
         })
     }
 
-    fn import<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
-        if !self.site_packages.is_empty() {
+    fn import<'py>(self, py: Python<'py>) -> PyResult<Bound<'py, PyModule>> {
+        let mut paths = self.site_packages.into_iter();
+
+        if let Some(path) = paths.next() {
             let site = py.import("site")?;
-            for path in self.site_packages {
+
+            for path in iter::once(path).chain(paths) {
                 site.call_method1("addsitedir", (path.as_ref().as_os_str(),))?;
             }
         }
+
         py.import("spacy")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::cell::Cell;
+
+    #[test]
+    fn construction_does_not_convert_or_enumerate_paths() {
+        struct Paths<'a>(&'a Cell<bool>);
+
+        impl IntoIterator for Paths<'_> {
+            type Item = PathBuf;
+            type IntoIter = Empty<PathBuf>;
+
+            fn into_iter(self) -> Self::IntoIter {
+                self.0.set(true);
+                iter::empty()
+            }
+        }
+
+        let converted = Cell::new(false);
+
+        {
+            let _config = Config::new(Paths(&converted));
+
+            assert!(!converted.get());
+        }
+
+        assert!(!converted.get());
     }
 }
