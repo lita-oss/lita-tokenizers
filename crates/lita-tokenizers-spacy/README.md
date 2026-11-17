@@ -7,7 +7,6 @@
 The implementation of `lita-tokenizers-core` for [spacy-sys](../spacy-sys).
 This is a low-level backend; it is not yet integrated into the `lita-tokenizers` facade or `lita-tokenizers-cli`.
 
-The crate depends only on `lita-tokenizers-core` and `spacy-sys`.
 It does not install Python, spaCy, or pipeline models.
 The shared Python library is required at build and runtime; spaCy and its models are required when loading and running a pipeline.
 See [spacy-sys](../spacy-sys#build-and-runtime-requirements) for Python selection, linking, package search paths, and application distribution.
@@ -79,7 +78,6 @@ Selecting an attribute does not enable or run a pipeline component that supplies
 
 `Spacy::from(model)` is the adapter's shorthand for `[Pos, Tag, Lemma, Morph]`.
 A blank English pipeline with a sentencizer supplies empty values for these four attributes.
-This default is a choice of this adapter, not a spaCy tag ordering.
 
 `Spacy::new()` accepts an extraction specification implementing `TokenAttributes`.
 Arrays, vectors, borrowed slices, borrowed vectors, and custom types implementing that trait can supply the sequence.
@@ -87,13 +85,12 @@ The trait returns an iterator identifying which spaCy attribute value becomes ea
 The iterator must be finite; repeated attributes repeat the corresponding tag, and an empty iterator omits tags.
 The iterator can compute, filter, or reorder attributes lazily, and may borrow its source.
 It need not be cloneable, have an exact length, or be backed by a collection.
-The builder borrows the source and requests a fresh iterator for each retained token; it does not freeze the sequence when constructed.
+The builder borrows the source and requests a fresh iterator for each retained token.
 Order and length may differ between enumerations; each token retains the values actually extracted for it.
 Configuration changes affect later enumerations; results already extracted into a stream remain unchanged.
-The tokenizer stores the supplied source unchanged, without copying, converting, or boxing it.
+The tokenizer takes ownership of the supplied source.
 Borrowed sources must remain valid while the tokenizer uses them.
 The selection can be determined at runtime.
-Attribute values for all tokens share one buffer in the stream, avoiding a separate allocation for each token's tag collection.
 
 An application can generate its ordering lazily without storing a slice or collecting an intermediate sequence:
 
@@ -130,15 +127,13 @@ assert_eq!(
 # Ok::<(), sys::Error>(())
 ```
 
-The core traits expose infallible, borrowed token access.
-Consequently, `tokenize()` performs all fallible Python work under one interpreter attachment and extracts the surfaces and annotations into an owned Rust buffer.
-This materialization is the FFI boundary; subsequent token/tag iteration neither accesses Python nor allocates, copies strings, or uses dynamic dispatch.
-
+`tokenize()` returns Python processing errors before returning a stream.
 Streams own their results independently of the input, builder, and tokenizer.
 They remain usable after those values are dropped or reused.
+Iterating over the results does not access Python.
 `model()` exposes the underlying pipeline for configuration before building a stream.
 
-The backend disables `spacy-sys`'s optional features because it needs only the mandatory interface.
-Applications can enable additional `spacy-sys` features through their own dependency: `parsing` adds `TokenAttribute::Dep`, and `entities` adds `TokenAttribute::EntIob` and `TokenAttribute::EntType`.
+To use `TokenAttribute::Dep`, enable `spacy-sys`'s `parsing` feature through a direct dependency.
+To use `TokenAttribute::EntIob` or `TokenAttribute::EntType`, enable its `entities` feature.
 
 For integration tests and environment setup, see [spacy-sys development instructions](../spacy-sys/CONTRIBUTING.md).

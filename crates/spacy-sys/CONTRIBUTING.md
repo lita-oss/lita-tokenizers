@@ -24,6 +24,8 @@ and installs the locked test group, including spaCy 3.8.18 and `en_core_web_sm`
 access; subsequent runs reuse the environment and its uv cache. Rust's `--locked`
 and uv's `--locked` protect different dependency graphs; the script always uses
 uv's lockfile, and forwards arguments to `cargo test` for both crates.
+The Python version range in the test manifest controls dependency resolution;
+it does not describe a tested Python/platform matrix.
 
 `SPACY_TEST_ROOT` overrides the test cache location. Otherwise the script uses
 `CARGO_TARGET_DIR/spacy-tests`, or `target/spacy-tests` when no target directory is
@@ -85,5 +87,8 @@ for the pinned Python packages on musl; a Debian result alone does not validate 
 
 The uv project and lockfile are test fixtures, not a public runtime environment
 API. Update them together with uv, run both suites, and review annotation
-expectations when changing spaCy or the trained model. Application package
-versions, model choices, and cache directories remain application policy.
+expectations when changing spaCy or the trained model.
+Before adding a spaCy version to the supported range, run the integration suite
+against that version and update the README's supported-version section.
+Application package versions, model choices, and cache directories remain
+application policy.

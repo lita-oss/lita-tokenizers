@@ -6,11 +6,9 @@
 
 **A general Rust wrapper for [spaCy](https://spacy.io/), using PyO3 to embed CPython.**
 
-This crate is independent of LiTA and `lita-tokenizers-core`.
-For the LiTA tokenization traits, use [lita-tokenizers-spacy](../lita-tokenizers-spacy).
-
 The wrapper provides pipelines, documents, sentences, tokens, and common annotations.
-Training, GPU management, and the full spaCy API are outside its typed interface; `as_python()` exposes the underlying object for additional operations through the re-exported `python` (PyO3) crate.
+For operations outside the typed interface, `as_python()` exposes the underlying object through the re-exported `python` (PyO3) crate.
+For the LiTA tokenization traits, use [lita-tokenizers-spacy](../lita-tokenizers-spacy).
 
 ---
 
@@ -18,46 +16,30 @@ Training, GPU management, and the full spaCy API are outside its typed interface
 ## Supported spaCy versions
 
 `spacy-sys` 0.1 supports spaCy **3.8.18**.
-This is the version pinned by the integration tests; compatibility with other patch, minor, or major versions is not currently part of the support policy.
-Additional versions become supported only after the integration suite has been run against them and this section has been updated.
-
-The library does not check or reject spaCy versions at runtime.
-Applications are responsible for installing the supported version and compatible pipeline models and dependencies.
-Successful imports with another version do not establish compatibility with all wrapped operations.
-
-The integration environment uses spaCy 3.8.18 and the English 3.8.0 model on CPython 3.12.
-The test project's Python range is a dependency-resolution range, not a claim that every Python/platform combination has been validated.
+Use pipeline models and Python dependencies compatible with this release.
 
 
 ## Build and runtime requirements
 
 Install a shared-library build of CPython before building this crate or a binary that depends on it.
-PyO3 discovers Python from the environment; select it explicitly with an interpreter executable:
+Distribution-provided Python may also require its development/linker package, such as `python3-dev` on Debian/Ubuntu.
+PyO3 discovers Python from the environment; select an interpreter explicitly with `PYO3_PYTHON`:
 
 ```sh
 PYO3_PYTHON=/usr/bin/python3 cargo build -p spacy-sys
 ```
 
-Distribution-provided Python may also require its development/linker package (for example, `python3-dev` on Debian/Ubuntu).
-Having only the versioned runtime library, such as `libpython3.12.so.1.0`, may leave the linker unable to find `-lpython3.12`.
-
-The build checks that Python uses a shared library.
-It never installs Python, spaCy, or models.
-Ordinary builds do not need the `spacy` package.
-Python selection also applies to `cargo check`, rust-analyzer, and downstream builds.
-Cross-compilation additionally needs the target Python configuration described in [PyO3's build guide](https://pyo3.rs/v0.30.1/building-and-distribution).
-
-At runtime, the application must provide the corresponding Python shared library, standard library, and native dependencies.
-Python's ABI, architecture, and platform must match the installed extension modules.
 `PYO3_PYTHON` selects the build configuration; changing it at runtime does not change the linked Python.
-Embedding Python does not normally launch a Python subprocess.
+Cross-compilation requires the target Python configuration described in [PyO3's build guide](https://pyo3.rs/v0.30.1/building-and-distribution).
 
-The OS must find libpython before the Rust program starts.
-Configure the loader or application launcher accordingly; for example, Linux deployments may need `LD_LIBRARY_PATH`.
-A program linked against libpython cannot install a missing libpython from its own `main()`.
-Shipping a binary requires a compatible external Python installation or a distribution that includes the runtime and its startup configuration.
+At runtime, the application needs the corresponding Python shared library, standard library, spaCy, and any pipeline models it loads.
+Python's ABI, architecture, and platform must match the installed extension modules.
+The Rust build does not require spaCy or models to be installed, and does not install them.
+
+When distributing a binary, provide a compatible Python installation or include the runtime and its startup configuration in the distribution.
+The OS must be able to find libpython before the program starts; Linux deployments may need `LD_LIBRARY_PATH` in their launcher environment.
 A virtual environment alone does not contain the base Python standard library.
-If a launcher sets `PYTHONHOME`, it must refer to that base installation, not merely the virtual environment.
+If the launcher sets `PYTHONHOME`, it must refer to the base Python installation.
 
 ## Installation
 
@@ -88,26 +70,23 @@ Python::attach(|py| -> Result<(), Error> {
 # Ok::<(), Error>(())
 ```
 
+`Language::blank()` creates a tokenizer without trained annotations or sentence boundaries.
+Add a sentencizer or load a pipeline supplying boundaries before calling `Doc::sentences()`.
 `Language::load("en_core_web_sm")` loads an installed trained pipeline; `Language::load_path(path)` loads a pipeline directory.
-Loading never downloads models.
-A blank language provides tokenization but no trained annotations or sentence boundaries; add a sentencizer or load a pipeline supplying boundaries before calling `Doc::sentences()`.
+Models and their dependencies must already be installed.
 
-`Language::make_doc()` runs only the tokenizer.
-`Language::pipe()` exposes spaCy's batch-processing iterator.
-Python exceptions from construction, processing, and iteration are returned as the concrete `Error` (`pyo3::PyErr`).
-A fallible iterator terminates after its first error, as well as after exhaustion.
+`Language::make_doc()` runs only the tokenizer, while `Language::process()` also runs the active pipeline components.
+`Language::pipe()` processes a batch lazily in input order.
+Python exceptions are returned as `Error` (`pyo3::PyErr`); fallible iterators terminate after an error or exhaustion.
 
-For code that selects string-valued annotations at runtime, `TokenAttribute` identifies spaCy attributes directly: `Pos` (`pos_`), `Tag` (`tag_`), `Lemma` (`lemma_`), and `Morph` (`str(morph)`).
-`Token::attribute(kind)` reads the chosen attribute.
+`Token::attribute()` reads the attribute specified by `TokenAttribute`: `Pos` for `pos_`, `Tag` for `tag_`, `Lemma` for `lemma_`, and `Morph` for `str(morph)`.
 The `parsing` feature adds `Dep` (`dep_`); `entities` adds `EntIob` (`ent_iob_`) and `EntType` (`ent_type_`).
-This enum is not a token-tag ordering or a list of linguistic labels such as `NOUN`: it specifies which attribute to read.
+Available annotations depend on the loaded pipeline.
 
 ## Package and model locations
 
-Applications choose where to install spaCy and models.
-Existing installations from pip, uv, or other tooling work when their packages are searchable.
-Selecting a virtual environment with `PYO3_PYTHON` does not by itself guarantee that the embedded interpreter searches that environment's site-packages.
-
+Install spaCy and models in a location searchable by the embedded Python.
+Selecting a virtual environment with `PYO3_PYTHON` does not by itself guarantee that its site-packages will be searched.
 Use `Config` to add package directories explicitly:
 
 ```rust,no_run
@@ -119,40 +98,34 @@ let nlp = Config::new(&paths).load("en_core_web_sm")?;
 # Ok::<(), Error>(())
 ```
 
-Query `sysconfig.get_path('purelib')` and `sysconfig.get_path('platlib')` with the Python used to prepare the environment instead of guessing their layout.
-For models installed as packages, include the directory containing the package and its distribution metadata.
-A model directory still needs any Python dependencies and registered components it uses.
+Find the package directories with `sysconfig.get_path('purelib')` and `sysconfig.get_path('platlib')` in the Python used to prepare the environment.
+For model packages, include the installation directory containing the package and its distribution metadata.
+Loading a model directory still requires its Python dependencies and registered components to be importable.
 
-Each configured path is passed to `site.addsitedir()` before importing spaCy.
-Paths supplement the existing search path and `.pth` files are processed, including their executable lines.
-This does not isolate environments or override an already imported package.
-Search paths and imported modules are process-wide; the additions persist after a `Config` or `Language` is dropped.
-Configure paths before the first spaCy import and manage one compatible environment per process.
+Configured paths are added with `site.addsitedir()`, which also processes `.pth` files, including their executable lines.
+Search paths and imported modules are process-wide; added paths persist after the configuration or pipeline is dropped.
+Configure package locations before the first spaCy import.
+Adding paths does not isolate environments or replace an already imported package.
 
 ## Ownership and costs
 
-`Language` owns a Python reference.
-`Doc`, `Span`, and `Token` hold Python references bound to the lifetime of an attached interpreter; Python keeps their backing data alive.
-They do not borrow the input string or the `Language`.
-Keep Python handles within `Python::attach()` and clone and unbind the underlying Python handle when it is needed beyond that attachment, for example `nlp.as_python(py).clone().unbind()`.
+`Language` owns a pipeline reference.
+`Doc`, `Span`, and `Token` remain valid within their `Python::attach()` scope and retain their backing data independently of the input string and pipeline.
+To retain an underlying Python object beyond that scope, clone and unbind its handle, for example `nlp.as_python(py).clone().unbind()`.
 
-`Config` borrows its path slice without copying paths or allocating storage.
-Typed wrappers add no Rust heap allocation or dynamic dispatch.
-Iterators advance lazily without collecting their results.
-Python calls, Python reference counting, and conversion across the FFI boundary still have their normal costs.
-String getters copy into Rust-owned strings at that boundary; `Token::text_ref()` returns a Python string handle for borrowed access through PyO3.
-No zero-copy claim is made for Python string conversion or serialization.
+String getters return Rust-owned strings.
+`Token::text_ref()` and `Span::text_ref()` return Python string handles for borrowed inspection.
 
 ## Feature flags
 
-All optional features are enabled by default and add no dependencies:
+All optional features are enabled by default:
 
-- `entities`: Document entities and span labels.
+- `entities`: Document entities, token entity annotations, and span labels.
 - `parsing`: Token dependency labels, heads, and children.
 - `serialization`: Pipeline/document saving and document byte serialization.
 
 Disable them with `default-features = false`.
 Tokenization, sentence iteration, POS, fine POS, lemmas, morphology, and basic pipeline operations remain available.
-Features control the Rust interface; they do not install Python packages or enable spaCy pipeline components.
+Features expose Rust APIs; the loaded spaCy pipeline determines which annotations are populated.
 
-For development, integration tests, and containers, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For development and testing, see [CONTRIBUTING.md](CONTRIBUTING.md).
