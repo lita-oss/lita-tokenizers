@@ -15,6 +15,20 @@ Training, GPU management, and the full spaCy API are outside its typed interface
 ---
 
 
+## Supported spaCy versions
+
+`spacy-sys` 0.1 supports spaCy **3.8.18**.
+This is the version pinned by the integration tests; compatibility with other patch, minor, or major versions is not currently part of the support policy.
+Additional versions become supported only after the integration suite has been run against them and this section has been updated.
+
+The library does not check or reject spaCy versions at runtime.
+Applications are responsible for installing the supported version and compatible pipeline models and dependencies.
+Successful imports with another version do not establish compatibility with all wrapped operations.
+
+The integration environment uses spaCy 3.8.18 and the English 3.8.0 model on CPython 3.12.
+The test project's Python range is a dependency-resolution range, not a claim that every Python/platform combination has been validated.
+
+
 ## Build and runtime requirements
 
 Install a shared-library build of CPython before building this crate or a binary that depends on it.
@@ -44,9 +58,6 @@ A program linked against libpython cannot install a missing libpython from its o
 Shipping a binary requires a compatible external Python installation or a distribution that includes the runtime and its startup configuration.
 A virtual environment alone does not contain the base Python standard library.
 If a launcher sets `PYTHONHOME`, it must refer to that base installation, not merely the virtual environment.
-
-The integration environment pins spaCy 3.8.18 and the English 3.8.0 model on CPython 3.12.
-The test project's Python range is a dependency-resolution range, not a claim that every Python/platform combination has been validated.
 
 ## Installation
 
