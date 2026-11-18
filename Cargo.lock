@@ -929,7 +929,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "lita-tokenizers"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "futures-util",
  "lita-tokenizers-core",
@@ -943,7 +943,7 @@ dependencies = [
 
 [[package]]
 name = "lita-tokenizers-cli"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",

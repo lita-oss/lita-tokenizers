@@ -16,7 +16,7 @@ spacy-sys = { path = "./crates/spacy-sys", version = "0.1.0", default-features =
 
 tokenizers-core = { path = "./crates/lita-tokenizers-core", package = "lita-tokenizers-core", version = "0.1.0" }
 tokenizers-utils = { path = "./crates/lita-tokenizers-utils", package = "lita-tokenizers-utils", default-features = false, version = "0.1.1" }
-tokenizers-api = { path = "./crates/lita-tokenizers", package = "lita-tokenizers", default-features = false, version = "0.2.2" }
+tokenizers-api = { path = "./crates/lita-tokenizers", package = "lita-tokenizers", default-features = false, version = "0.3.0" }
 
 tokenizers-kytea = { path = "./crates/lita-tokenizers-kytea", package = "lita-tokenizers-kytea", version = "0.1.2" }
 tokenizers-mecab = { path = "./crates/lita-tokenizers-mecab", package = "lita-tokenizers-mecab", version = "0.1.1" }
