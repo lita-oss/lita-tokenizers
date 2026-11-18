@@ -11,12 +11,13 @@ repository.workspace = true
 homepage.workspace = true
 
 [features]
-default = ["decode", "kytea", "mecab"]
+default = ["decode", "kytea", "mecab", "spacy"]
 
 decode = ["tokenizers-api/decode"]
 
 kytea = ["tokenizers-api/kytea"]
 mecab = ["tokenizers-api/mecab"]
+spacy = ["tokenizers-api/spacy"]
 
 [dependencies]
 tokenizers-api = { workspace = true, features = ["tokio"] }

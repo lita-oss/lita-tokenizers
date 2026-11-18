@@ -12,6 +12,7 @@ homepage = "https://github.com/lita-oss/lita-tokenizers"
 [workspace.dependencies]
 kytea-sys = { path = "./crates/kytea-sys", version = "0.2.7" }
 mecab-sys = { path = "./crates/mecab-sys", version = "0.1.2" }
+spacy-sys = { path = "./crates/spacy-sys", version = "0.1.0", default-features = false }
 
 tokenizers-core = { path = "./crates/lita-tokenizers-core", package = "lita-tokenizers-core", version = "0.1.0" }
 tokenizers-utils = { path = "./crates/lita-tokenizers-utils", package = "lita-tokenizers-utils", default-features = false, version = "0.1.1" }
@@ -19,7 +20,10 @@ tokenizers-api = { path = "./crates/lita-tokenizers", package = "lita-tokenizers
 
 tokenizers-kytea = { path = "./crates/lita-tokenizers-kytea", package = "lita-tokenizers-kytea", version = "0.1.2" }
 tokenizers-mecab = { path = "./crates/lita-tokenizers-mecab", package = "lita-tokenizers-mecab", version = "0.1.1" }
+tokenizers-spacy = { path = "./crates/lita-tokenizers-spacy", package = "lita-tokenizers-spacy", version = "0.1.0" }
 tokenizers-whitespace = { path = "./crates/lita-tokenizers-whitespace", package = "lita-tokenizers-whitespace", version = "0.1.0" }
+
+pyo3 = { version = "0.30", default-features = false, features = ["auto-initialize"] }
 
 escaped-delimiter = "0.2"
 memchr = "2.8"

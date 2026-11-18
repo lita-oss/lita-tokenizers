@@ -1,0 +1,22 @@
+[package]
+name = "spacy-sys"
+version = "0.1.0"
+description = "Typed Rust wrappers for spaCy through embedded CPython."
+exclude = ["tests/models", ".tmp"]
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[features]
+default = ["entities", "parsing", "serialization"]
+entities = []
+parsing = []
+serialization = []
+
+[dependencies]
+pyo3.workspace = true
+
+[build-dependencies]
+pyo3-build-config = "0.30"

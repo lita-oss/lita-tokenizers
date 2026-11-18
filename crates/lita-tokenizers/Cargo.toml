@@ -14,12 +14,13 @@ homepage.workspace = true
 all-features = true
 
 [features]
-default = ["decode", "kytea", "mecab", "tokio"]
+default = ["decode", "kytea", "mecab", "spacy", "tokio"]
 
 decode = ["tokenizers-utils/decode"]
 
 kytea = ["dep:tokenizers-kytea"]
 mecab = ["dep:tokenizers-mecab"]
+spacy = ["dep:tokenizers-spacy"]
 
 tokio = ["tokenizers-utils/tokio-io", "tokenizers-utils/tokio-fs", "dep:futures-util"]
 
@@ -29,6 +30,7 @@ tokenizers-utils = { workspace = true, features = ["sync-io", "sync-fs"] }
 
 tokenizers-kytea = { workspace = true, optional = true }
 tokenizers-mecab = { workspace = true, optional = true }
+tokenizers-spacy = { workspace = true, optional = true }
 tokenizers-whitespace = { workspace = true }
 
 futures-util = { workspace = true, optional = true }

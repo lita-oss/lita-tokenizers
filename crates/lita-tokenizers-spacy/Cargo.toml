@@ -1,0 +1,15 @@
+[package]
+name = "lita-tokenizers-spacy"
+version = "0.1.0"
+
+description = "The implementation of lita-tokenizers-core for spacy-sys."
+
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+tokenizers-core.workspace = true
+spacy-sys.workspace = true
